@@ -96,7 +96,7 @@ function groupFromAutogenerateConfig(
 	routes: Route[],
 	currentPathname: string
 ): SidebarGroup {
-	const { attrs, collapsed: subgroupCollapsed, directory } = item.autogenerate;
+	const { attrs, collapsed: subgroupCollapsed, directory, sort } = item.autogenerate;
 	const localeDir = locale ? locale + '/' + directory : directory;
 	const dirDocs = routes.filter((doc) => {
 		const filePathFromContentDir = getRoutePathRelativeToCollectionRoot(doc, locale);
@@ -117,7 +117,8 @@ function groupFromAutogenerateConfig(
 			currentPathname,
 			locale,
 			subgroupCollapsed ?? item.collapsed,
-			attrs
+			attrs,
+			sort
 		),
 		collapsed: item.collapsed,
 		badge: getSidebarBadge(item.badge, locale, label),
@@ -295,14 +296,17 @@ function getOrder(routeOrDir: Route | Dir): number {
 }
 
 /** Sort a directory’s entries by user-specified order or alphabetically if no order specified. */
-function sortDirEntries(dir: [string, Dir | Route][]): [string, Dir | Route][] {
+function sortDirEntries(dir: [string, Dir | Route][], sortOrder: 'asc' | 'desc' = 'asc'): [string, Dir | Route][] {
 	const collator = new Intl.Collator(localeToLang(undefined));
 	return dir.sort(([_keyA, a], [_keyB, b]) => {
 		const [aOrder, bOrder] = [getOrder(a), getOrder(b)];
-		// Pages are sorted by order in ascending order.
-		if (aOrder !== bOrder) return aOrder < bOrder ? -1 : 1;
+		// Pages are sorted by order in ascending or descending order based on sortOrder.
+		if (aOrder !== bOrder) {
+			return sortOrder === 'asc' ? (aOrder < bOrder ? -1 : 1) : (aOrder > bOrder ? -1 : 1);
+		}
 		// If two pages have the same order value they will be sorted by their slug.
-		return collator.compare(isDir(a) ? a[SlugKey] : a.slug, isDir(b) ? b[SlugKey] : b.slug);
+		const comparison = collator.compare(isDir(a) ? a[SlugKey] : a.slug, isDir(b) ? b[SlugKey] : b.slug);
+		return sortOrder === 'asc' ? comparison : -comparison;
 	});
 }
 
@@ -314,10 +318,11 @@ function groupFromDir(
 	currentPathname: string,
 	locale: string | undefined,
 	collapsed: boolean,
-	attrs?: LinkHTMLAttributes
+	attrs?: LinkHTMLAttributes,
+	sortOrder: 'asc' | 'desc' = 'asc'
 ): SidebarGroup {
-	const entries = sortDirEntries(Object.entries(dir)).map(([key, dirOrRoute]) =>
-		dirToItem(dirOrRoute, `${fullPath}/${key}`, key, currentPathname, locale, collapsed, attrs)
+	const entries = sortDirEntries(Object.entries(dir), sortOrder).map(([key, dirOrRoute]) =>
+		dirToItem(dirOrRoute, `${fullPath}/${key}`, key, currentPathname, locale, collapsed, attrs, sortOrder)
 	);
 	return {
 		type: 'group',
@@ -336,10 +341,11 @@ function dirToItem(
 	currentPathname: string,
 	locale: string | undefined,
 	collapsed: boolean,
-	attrs?: LinkHTMLAttributes
+	attrs?: LinkHTMLAttributes,
+	sortOrder: 'asc' | 'desc' = 'asc'
 ): SidebarEntry {
 	return isDir(dirOrRoute)
-		? groupFromDir(dirOrRoute, fullPath, dirName, currentPathname, locale, collapsed, attrs)
+		? groupFromDir(dirOrRoute, fullPath, dirName, currentPathname, locale, collapsed, attrs, sortOrder)
 		: linkFromRoute(dirOrRoute, attrs);
 }
 
@@ -349,10 +355,11 @@ function sidebarFromDir(
 	currentPathname: string,
 	locale: string | undefined,
 	collapsed: boolean,
-	attrs?: LinkHTMLAttributes
+	attrs?: LinkHTMLAttributes,
+	sortOrder: 'asc' | 'desc' = 'asc'
 ) {
-	return sortDirEntries(Object.entries(tree)).map(([key, dirOrRoute]) =>
-		dirToItem(dirOrRoute, key, key, currentPathname, locale, collapsed, attrs)
+	return sortDirEntries(Object.entries(tree), sortOrder).map(([key, dirOrRoute]) =>
+		dirToItem(dirOrRoute, key, key, currentPathname, locale, collapsed, attrs, sortOrder)
 	);
 }
 
